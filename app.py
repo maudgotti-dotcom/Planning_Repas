@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Planning Repas Étudiant", layout="centered", page_icon="🍲")
 
-st.title("🍲 Planificateur de repas - Semaine étudiante")
+st.title("🍲 Planificateur de repas - Corentin")
 
 @st.cache_data
 def load_repas():
