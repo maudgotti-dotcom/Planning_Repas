@@ -25,7 +25,7 @@ EXCLUSIONS = ['œufs au plat', 'poke bowl', 'pizzas', 'pinsa', 'croque monsieur'
 
 plats_complets = df[(df['type_clean'] == 'plat') & (~df['plat_clean'].isin(EXCLUSIONS))]['plat_clean'].tolist()
 viandes = df[(df['type_clean'] == 'viande/poisson') & (~df['plat_clean'].isin(EXCLUSIONS))]['plat_clean'].tolist()
-legumes = df[df['type_clean'] == 'légumes'].tolist()
+legumes = df[df['type_clean'] == 'légumes'].['plat_clean'].tolist()
 
 SUGGESTIONS_EXTERIEURES = [
     "Dahl de lentilles corail au lait de coco et riz",
