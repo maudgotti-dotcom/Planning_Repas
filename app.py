@@ -65,8 +65,9 @@ MOIS = ["janvier", "février", "mars", "avril", "mai", "juin",
 
 saved_data = charger_sauvegarde()
 
+# Par défaut, ouverture sur la semaine suivante (week_offset = 1)
 if "week_offset" not in st.session_state:
-    st.session_state.week_offset = 0
+    st.session_state.week_offset = 1
 
 if "plannings" not in st.session_state:
     st.session_state.plannings = saved_data.get("plannings", {})
@@ -130,12 +131,12 @@ with col_nav1:
         st.rerun()
 
 with col_nav2:
-    if st.button("📅 Semaine actuelle"):
-        st.session_state.week_offset = 0
+    if st.button("📅 Semaine suivante"):
+        st.session_state.week_offset = 1
         st.rerun()
 
 with col_nav3:
-    if st.button("Semaine suivante ➡️"):
+    if st.button("Semaine d'après ➡️"):
         st.session_state.week_offset += 1
         st.rerun()
 
