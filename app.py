@@ -1,11 +1,32 @@
 import streamlit as st
 import pandas as pd
 import random
+import json
+import os
 from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Planning Repas Étudiant", layout="centered", page_icon="🍲")
 
-st.title("🍲 Planning Repas Corentin")
+st.title("🍲 Planificateur de repas - Semaine étudiante")
+
+SAVE_FILE = "planning_saved.json"
+
+def charger_sauvegarde():
+    if os.path.exists(SAVE_FILE):
+        try:
+            with open(SAVE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {"plannings": {}, "verrouilles": {}}
+    return {"plannings": {}, "verrouilles": {}}
+
+def enregistrer_sauvegarde():
+    data = {
+        "plannings": st.session_state.plannings,
+        "verrouilles": st.session_state.verrouilles
+    }
+    with open(SAVE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 @st.cache_data
 def load_repas():
@@ -37,19 +58,20 @@ SUGGESTIONS_EXTERIEURES = [
     "Sauté de dinde aux poivrons et semoule"
 ]
 
-# Liste complète triée pour la sélection avec barre de recherche
 tous_les_plats = sorted(list(set(df['plat_clean'].tolist() + SUGGESTIONS_EXTERIEURES)))
 
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", 
         "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
 
+saved_data = charger_sauvegarde()
+
 if "week_offset" not in st.session_state:
     st.session_state.week_offset = 0
 
 if "plannings" not in st.session_state:
-    st.session_state.plannings = {}
+    st.session_state.plannings = saved_data.get("plannings", {})
 if "verrouilles" not in st.session_state:
-    st.session_state.verrouilles = {}
+    st.session_state.verrouilles = saved_data.get("verrouilles", {})
 
 today = datetime.now().date()
 lundi_courant = today - timedelta(days=today.weekday()) + timedelta(weeks=st.session_state.week_offset)
@@ -96,6 +118,7 @@ def generer_planning_semaine(wk):
             nouveau_plat = tirer_un_plat(deja_choisis)
             st.session_state.plannings[wk][date_iso] = nouveau_plat
             deja_choisis.append(nouveau_plat.split(" (")[0])
+    enregistrer_sauvegarde()
 
 if all(v == "" for v in st.session_state.plannings[week_key].values()):
     generer_planning_semaine(week_key)
@@ -136,8 +159,11 @@ for label_jour, date_iso in JOURS_DATES:
     col_lock, col_text, col_change = st.columns([1, 3.5, 1.5])
     
     with col_lock:
-        is_locked = st.checkbox("🔒 Valider", value=st.session_state.verrouilles[week_key][date_iso], key=f"lock_{week_key}_{date_iso}")
-        st.session_state.verrouilles[week_key][date_iso] = is_locked
+        is_locked_old = st.session_state.verrouilles[week_key][date_iso]
+        is_locked = st.checkbox("🔒 Valider", value=is_locked_old, key=f"lock_{week_key}_{date_iso}")
+        if is_locked != is_locked_old:
+            st.session_state.verrouilles[week_key][date_iso] = is_locked
+            enregistrer_sauvegarde()
     
     with col_text:
         plat_actuel = st.session_state.plannings[week_key][date_iso]
@@ -151,31 +177,30 @@ for label_jour, date_iso in JOURS_DATES:
             if st.button("🎲 Tirer au sort", key=f"btn_{week_key}_{date_iso}"):
                 deja_choisis = [p.split(" (")[0] for p in st.session_state.plannings[week_key].values()]
                 st.session_state.plannings[week_key][date_iso] = tirer_un_plat(deja_choisis)
+                enregistrer_sauvegarde()
                 st.rerun()
     
-    # Choix manuel multiselect
     if not is_locked:
         with st.expander(f"✏️ Choisir manuellement pour {label_jour}"):
-            col_sel, col_inp = st.columns(2)
-            with col_sel:
-                choix_multiples = st.multiselect(
-                    "Chercher et sélectionner (1 ou 2 éléments) :",
-                    options=tous_les_plats,
-                    max_selections=2,
-                    key=f"multi_{week_key}_{date_iso}"
-                )
-                if choix_multiples:
-                    if st.button("Appliquer la sélection", key=f"btn_apply_multi_{week_key}_{date_iso}"):
-                        st.session_state.plannings[week_key][date_iso] = " + ".join(choix_multiples)
-                        st.session_state.verrouilles[week_key][date_iso] = True
-                        st.rerun()
+            choix_multiples = st.multiselect(
+                "Sélectionner depuis la liste (max 2) :",
+                options=tous_les_plats,
+                max_selections=2,
+                key=f"multi_{week_key}_{date_iso}"
+            )
+            saisie_libre = st.text_input("Ou ajouter un texte libre :", key=f"input_{week_key}_{date_iso}")
             
-            with col_inp:
-                saisie_libre = st.text_input("Ou saisie libre :", key=f"input_{week_key}_{date_iso}")
-                if saisie_libre.strip() != "":
-                    if st.button("Valider la saisie", key=f"btn_apply_inp_{week_key}_{date_iso}"):
-                        st.session_state.plannings[week_key][date_iso] = saisie_libre.strip()
-                        st.session_state.verrouilles[week_key][date_iso] = True
-                        st.rerun()
+            if st.button("Valider la sélection pour ce jour", key=f"btn_valider_combinaison_{week_key}_{date_iso}"):
+                elements = list(choix_multiples)
+                if saisie_libre.strip():
+                    elements.append(saisie_libre.strip())
+                
+                if elements:
+                    st.session_state.plannings[week_key][date_iso] = " + ".join(elements)
+                    st.session_state.verrouilles[week_key][date_iso] = True
+                    enregistrer_sauvegarde()
+                    st.rerun()
+                else:
+                    st.warning("Veuillez sélectionner au moins un plat ou saisir du texte.")
 
     st.write("")
