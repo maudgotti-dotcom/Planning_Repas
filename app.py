@@ -25,7 +25,7 @@ EXCLUSIONS = ['œufs au plat', 'poke bowl', 'pizzas', 'pinsa', 'croque monsieur'
 
 plats_complets = df[(df['type_clean'] == 'plat') & (~df['plat_clean'].isin(EXCLUSIONS))]['plat_clean'].tolist()
 viandes = df[(df['type_clean'] == 'viande/poisson') & (~df['plat_clean'].isin(EXCLUSIONS))]['plat_clean'].tolist()
-legumes = df[df['type_clean'] == 'légumes']['plat_clean'].tolist()
+legumes = df[df['type_clean'] == 'légumes'].tolist()
 
 SUGGESTIONS_EXTERIEURES = [
     "Dahl de lentilles corail au lait de coco et riz",
@@ -37,10 +37,12 @@ SUGGESTIONS_EXTERIEURES = [
     "Sauté de dinde aux poivrons et semoule"
 ]
 
+# Liste complète triée pour le menu déroulant
+tous_les_plats = sorted(list(set(df['plat_clean'].tolist() + SUGGESTIONS_EXTERIEURES)))
+
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", 
         "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
 
-# Gestion du décalage de la semaine dans la session
 if "week_offset" not in st.session_state:
     st.session_state.week_offset = 0
 
@@ -49,11 +51,9 @@ if "plannings" not in st.session_state:
 if "verrouilles" not in st.session_state:
     st.session_state.verrouilles = {}
 
-# Calcul du lundi de la semaine affichée
 today = datetime.now().date()
 lundi_courant = today - timedelta(days=today.weekday()) + timedelta(weeks=st.session_state.week_offset)
 
-# Formatage des 4 jours (Lundi au Jeudi) avec dates
 JOURS_DATES = []
 nom_jours = ["Lundi", "Mardi", "Mercredi", "Jeudi"]
 for i in range(4):
@@ -63,7 +63,6 @@ for i in range(4):
 
 week_key = lundi_courant.isoformat()
 
-# Initialisation des données pour la semaine courante
 if week_key not in st.session_state.plannings:
     st.session_state.plannings[week_key] = {date_iso: "" for _, date_iso in JOURS_DATES}
 if week_key not in st.session_state.verrouilles:
@@ -98,11 +97,9 @@ def generer_planning_semaine(wk):
             st.session_state.plannings[wk][date_iso] = nouveau_plat
             deja_choisis.append(nouveau_plat.split(" (")[0])
 
-# Premier tirage si la semaine est vide
 if all(v == "" for v in st.session_state.plannings[week_key].values()):
     generer_planning_semaine(week_key)
 
-# Barre de navigation par boutons entre les semaines
 col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
 with col_nav1:
     if st.button("⬅️ Semaine précédente"):
@@ -119,7 +116,6 @@ with col_nav3:
         st.session_state.week_offset += 1
         st.rerun()
 
-# Affichage du titre de la semaine
 jeudi_d = lundi_courant + timedelta(days=3)
 st.subheader(f"📅 Semaine du {lundi_courant.day} {MOIS[lundi_courant.month-1]} au {jeudi_d.day} {MOIS[jeudi_d.month-1]} {lundi_courant.year}")
 
@@ -136,9 +132,8 @@ with col_btn2:
 
 st.write("---")
 
-# Affichage des repas du Lundi au Jeudi
 for label_jour, date_iso in JOURS_DATES:
-    col_lock, col_text, col_change = st.columns([1, 4, 1.2])
+    col_lock, col_text, col_change = st.columns([1, 3.5, 1.5])
     
     with col_lock:
         is_locked = st.checkbox("🔒 Valider", value=st.session_state.verrouilles[week_key][date_iso], key=f"lock_{week_key}_{date_iso}")
@@ -153,7 +148,33 @@ for label_jour, date_iso in JOURS_DATES:
     
     with col_change:
         if not is_locked:
-            if st.button("🎲 Changer", key=f"btn_{week_key}_{date_iso}"):
+            if st.button("🎲 Tirer au sort", key=f"btn_{week_key}_{date_iso}"):
                 deja_choisis = [p.split(" (")[0] for p in st.session_state.plannings[week_key].values()]
                 st.session_state.plannings[week_key][date_iso] = tirer_un_plat(deja_choisis)
                 st.rerun()
+    
+    # Choix manuel
+    if not is_locked:
+        with st.expander(f"✏️ Choisir manuellement pour {label_jour}"):
+            col_sel, col_inp = st.columns(2)
+            with col_sel:
+                choix_liste = st.selectbox(
+                    "Depuis la liste :",
+                    options=["-- Choisir un plat --"] + tous_les_plats,
+                    key=f"select_{week_key}_{date_iso}"
+                )
+                if choix_liste != "-- Choisir un plat --":
+                    if st.button("Appliquer la sélection", key=f"btn_apply_sel_{week_key}_{date_iso}"):
+                        st.session_state.plannings[week_key][date_iso] = choix_liste
+                        st.session_state.verrouilles[week_key][date_iso] = True
+                        st.rerun()
+            
+            with col_inp:
+                saisie_libre = st.text_input("Ou saisie libre :", key=f"input_{week_key}_{date_iso}")
+                if saisie_libre.strip() != "":
+                    if st.button("Valider la saisie", key=f"btn_apply_inp_{week_key}_{date_iso}"):
+                        st.session_state.plannings[week_key][date_iso] = saisie_libre.strip()
+                        st.session_state.verrouilles[week_key][date_iso] = True
+                        st.rerun()
+
+    st.write("")
