@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Planning Repas Étudiant", layout="centered", page_icon="🍲")
 
-st.title("🍲 Planning repas - Corentin")
+st.title("🍲 Planning Repas Corentin")
 
 @st.cache_data
 def load_repas():
@@ -37,7 +37,7 @@ SUGGESTIONS_EXTERIEURES = [
     "Sauté de dinde aux poivrons et semoule"
 ]
 
-# Liste complète triée pour le menu déroulant
+# Liste complète triée pour la sélection avec barre de recherche
 tous_les_plats = sorted(list(set(df['plat_clean'].tolist() + SUGGESTIONS_EXTERIEURES)))
 
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", 
@@ -153,19 +153,20 @@ for label_jour, date_iso in JOURS_DATES:
                 st.session_state.plannings[week_key][date_iso] = tirer_un_plat(deja_choisis)
                 st.rerun()
     
-    # Choix manuel
+    # Choix manuel multiselect
     if not is_locked:
         with st.expander(f"✏️ Choisir manuellement pour {label_jour}"):
             col_sel, col_inp = st.columns(2)
             with col_sel:
-                choix_liste = st.selectbox(
-                    "Depuis la liste :",
-                    options=["-- Choisir un plat --"] + tous_les_plats,
-                    key=f"select_{week_key}_{date_iso}"
+                choix_multiples = st.multiselect(
+                    "Chercher et sélectionner (1 ou 2 éléments) :",
+                    options=tous_les_plats,
+                    max_selections=2,
+                    key=f"multi_{week_key}_{date_iso}"
                 )
-                if choix_liste != "-- Choisir un plat --":
-                    if st.button("Appliquer la sélection", key=f"btn_apply_sel_{week_key}_{date_iso}"):
-                        st.session_state.plannings[week_key][date_iso] = choix_liste
+                if choix_multiples:
+                    if st.button("Appliquer la sélection", key=f"btn_apply_multi_{week_key}_{date_iso}"):
+                        st.session_state.plannings[week_key][date_iso] = " + ".join(choix_multiples)
                         st.session_state.verrouilles[week_key][date_iso] = True
                         st.rerun()
             
